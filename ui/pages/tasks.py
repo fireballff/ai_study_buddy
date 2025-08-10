@@ -1,12 +1,14 @@
 from __future__ import annotations
+from sqlalchemy import text
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem
 from PyQt6.QtCore import Qt
 from datetime import datetime
-from project.db import get_engine
-from integrations.google_calendar import GoogleCalendarClient
-from agents.task_breakdown import breakdown_task
-import sqlite3
 
+# Removed unused imports:
+# from project.db import get_engine
+# from integrations.google_calendar import GoogleCalendarClient
+# from agents.task_breakdown import breakdown_task
+# import sqlite3
 
 class TasksPage(QWidget):
     """
@@ -35,15 +37,16 @@ class TasksPage(QWidget):
         self.list_widget.clear()
         with self.engine.begin() as conn:
             rows = conn.execute(
-                "SELECT id, title, type, estimated_duration, due_date, state, start_time, end_time FROM tasks ORDER BY created_at"
+                text(
+                    "SELECT id, title, type, estimated_duration, due_date, state, start_time, end_time "
+                    "FROM tasks ORDER BY created_at"
+                )
             ).fetchall()
             for row in rows:
                 task_id, title, ttype, duration, due, state, start, end = row
                 due_str = f"Due: {due}" if due else ""
                 state_str = f"[{state}]"
-                time_str = ""
-                if start and end:
-                    time_str = f" | {start} → {end}"
+                time_str = f" | {start} → {end}" if (start and end) else ""
                 item_text = f"#{task_id}: {title} ({ttype}, {duration}m) {state_str} {due_str}{time_str}"
                 self.list_widget.addItem(QListWidgetItem(item_text))
 
@@ -78,10 +81,13 @@ class TasksPage(QWidget):
             duration = duration_spin.value()
             due_dt = due_edit.dateTime().toPyDateTime()
             due_iso = due_dt.isoformat() if due_dt else None
-            # Insert into DB
+
             with self.engine.begin() as conn:
                 conn.execute(
-                    "INSERT INTO tasks (title, type, estimated_duration, due_date) VALUES (:title, :type, :duration, :due)",
+                    text(
+                        "INSERT INTO tasks (title, type, estimated_duration, due_date) "
+                        "VALUES (:title, :type, :duration, :due)"
+                    ),
                     {"title": title, "type": ttype, "duration": duration, "due": due_iso},
                 )
             dialog.accept()

@@ -1,0 +1,12 @@
+# Alembic Migration Scripts
+
+This directory houses Alembic migration scripts.
+
+Use the following commands within a virtual environment:
+
+    ```bash
+    alembic revision --autogenerate -m "message"
+    alembic upgrade head
+    ```
+
+    The first migration creates a minimal `app_meta` table. Future revisions will add tables for tasks, events, and other app data.

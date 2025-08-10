@@ -8,4 +8,12 @@ SQLAlchemy
 supabase
 python-dateutil
 fuzzywuzzy
+python-Levenshtein  # speeds up fuzzywuzzy
 pytest
+PyInstaller
+pathlib
+google-api-python-client
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+requests

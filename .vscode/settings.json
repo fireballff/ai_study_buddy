@@ -1,6 +1,27 @@
 {
     "cSpell.words": [
+        "abspath",
+        "datas",
+        "dateutil",
+        "dotenv",
+        "fuzzywuzzy",
+        "getcwd",
+        "hiddenimports",
+        "hooksconfig",
+        "hookspath",
+        "httplib",
+        "noarchive",
+        "normpath",
+        "Onedir",
+        "pathex",
+        "pathlib",
+        "Pomodoro",
         "poolclass",
-        "Supabase"
+        "pydantic",
+        "pyinstaller",
+        "pytest",
+        "structlog",
+        "Supabase",
+        "venv"
     ]
 }
