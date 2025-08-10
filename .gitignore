@@ -1,1 +1,18 @@
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+
+# Virtual envs
+.venv/
+env/
+
+# Local state
 .env
+ai_study_buddy.db
+
+# Build artifacts
+build/
+dist/
