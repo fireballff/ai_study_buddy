@@ -2,19 +2,21 @@ from __future__ import annotations
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem
 from PyQt6.QtCore import Qt
 from datetime import datetime, timedelta
-from project.db import get_engine
 from agents.planner import schedule_tasks
 from integrations.google_calendar import GoogleCalendarClient
+from sqlalchemy import text
 
 
 class PlannerPage(QWidget):
     """
-    Page for generating and displaying a weekly plan of tasks.
+    Page for generating and displaying a plan of tasks (today-focused for now).
     """
     def __init__(self, engine, parent=None):
         super().__init__(parent)
         self.engine = engine
+
         layout = QVBoxLayout(self)
+
         title = QLabel("Planner")
         title.setObjectName("page-title")
         layout.addWidget(title)
@@ -25,57 +27,68 @@ class PlannerPage(QWidget):
 
         self.list_widget = QListWidget()
         layout.addWidget(self.list_widget)
+
         layout.addStretch(1)
 
     def on_generate(self):
         """
-        Trigger planning: fetch tasks and events from DB and compute schedule.
+        Fetch pending tasks + today's events, compute a schedule, persist, and render.
         """
         tasks = []
         events = []
+
+        # 1) Load pending tasks
         with self.engine.begin() as conn:
-            # fetch tasks that are pending
             task_rows = conn.execute(
-                "SELECT id, title, type, estimated_duration, due_date, start_time, end_time FROM tasks WHERE state = 'pending'"
+                text(
+                    "SELECT id, title, type, estimated_duration, due_date, start_time, end_time "
+                    "FROM tasks WHERE state = 'pending'"
+                )
             ).fetchall()
+
             for row in task_rows:
-                id_, title, ttype, duration, due_iso, start, end = row
+                task_id, title, ttype, duration, due_iso, start_iso, end_iso = row
                 task = {
-                    'id': id_,
-                    'title': title,
-                    'type': ttype,
-                    'estimated_duration': duration,
-                    'due_date': datetime.fromisoformat(due_iso) if due_iso else None,
+                    "id": task_id,
+                    "title": title,
+                    "type": ttype,
+                    "estimated_duration": duration,
+                    "due_date": datetime.fromisoformat(due_iso) if due_iso else None,
                 }
-                if start and end:
-                    task['start_time'] = datetime.fromisoformat(start)
-                    task['end_time'] = datetime.fromisoformat(end)
+                if start_iso and end_iso:
+                    task["start_time"] = datetime.fromisoformat(start_iso)
+                    task["end_time"] = datetime.fromisoformat(end_iso)
                 tasks.append(task)
-            # fetch events (use local DB via GoogleCalendarClient stub)
-            events_client = GoogleCalendarClient(self.engine)
-            # For now, we fetch events for today
-            today_start = datetime.combine(datetime.now().date(), datetime.min.time())
-            tomorrow = today_start + timedelta(days=1)
-            events = events_client.list_events(today_start, tomorrow)
-        # schedule tasks around events
+
+        # 2) Load today's events from local DB (client stub wraps DB reads)
+        events_client = GoogleCalendarClient(self.engine)
+        today_start = datetime.combine(datetime.now().date(), datetime.min.time())
+        tomorrow = today_start + timedelta(days=1)
+        events = events_client.list_events(today_start, tomorrow)
+
+        # 3) Schedule tasks around events
         scheduled = schedule_tasks(tasks, events)
-        # update tasks in DB
+
+        # 4) Persist the schedule back to DB
         with self.engine.begin() as conn:
             for t in scheduled:
                 conn.execute(
-                    "UPDATE tasks SET start_time = :start, end_time = :end WHERE id = :id",
+                    text("UPDATE tasks SET start_time = :start, end_time = :end WHERE id = :id"),
                     {
-                        'start': t['start_time'].isoformat(),
-                        'end': t['end_time'].isoformat(),
-                        'id': t['id'],
+                        "start": t["start_time"].isoformat(),
+                        "end": t["end_time"].isoformat(),
+                        "id": t["id"],
                     },
                 )
-        # Display schedule
+
+        # 5) Show the plan
         self.render_schedule(scheduled)
 
-    def render_schedule(self, tasks: list):
+    def render_schedule(self, tasks: list[dict]):
         self.list_widget.clear()
-        tasks_sorted = sorted(tasks, key=lambda t: t['start_time'])
+        tasks_sorted = sorted(tasks, key=lambda t: t["start_time"])
         for t in tasks_sorted:
-            item_text = f"{t['start_time'].strftime('%H:%M')} → {t['end_time'].strftime('%H:%M')} — {t['title']} ({t['type']})"
+            start_str = t["start_time"].strftime("%H:%M")
+            end_str = t["end_time"].strftime("%H:%M")
+            item_text = f"{start_str} → {end_str} — {t['title']} ({t['type']})"
             self.list_widget.addItem(QListWidgetItem(item_text))

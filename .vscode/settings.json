@@ -1,13 +1,18 @@
 {
     "cSpell.words": [
         "datas",
+        "etype",
+        "getcwd",
         "hiddenimports",
         "hooksconfig",
         "hookspath",
         "noarchive",
+        "openrouter",
         "pathex",
+        "pathlib",
         "poolclass",
         "pycache",
+        "pyinstaller",
         "pytest",
         "Supabase",
         "venv"

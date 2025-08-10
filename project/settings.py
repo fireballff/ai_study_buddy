@@ -1,44 +1,63 @@
 from __future__ import annotations
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
-
+from pathlib import Path
+import os
+import platform
 
 class Settings(BaseSettings):
     """
-    Application configuration loaded from environment variables or a .env file.
+    App settings loaded from .env and environment.
+    Extra keys are ignored so you can keep provider secrets without breaking validation.
     """
-
     model_config = SettingsConfigDict(
-        env_file='.env',
-        env_file_encoding='utf-8',
+        env_file=".env",
+        env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
-    # App settings
+    # App
     app_name: str = "AI Study Buddy"
     app_env: str = "development"
     app_log_level: str = "INFO"
     enable_dark_mode: bool = False
 
-    # Database
-    sqlite_path: str = "./ai_study_buddy.db"
+    # Storage defaults — put DB under user AppData unless SQLITE_PATH is set
+    def _default_appdata(self) -> Path:
+        sys = platform.system()
+        if sys == "Windows":
+            base = Path(os.getenv("APPDATA", Path.home() / "AppData" / "Roaming"))
+        elif sys == "Darwin":
+            base = Path.home() / "Library" / "Application Support"
+        else:
+            base = Path.home() / ".local" / "share"
+        d = base / "AI-Study-Buddy"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
 
-    # Supabase
+    sqlite_path: str = (
+        os.getenv("SQLITE_PATH")
+        or str((_default_appdata.__get__(object)()) / "ai_study_buddy.db")
+    )
+
+    # Providers (kept optional; presence flips from sample→live mode)
     supabase_url: Optional[str] = None
     supabase_anon_key: Optional[str] = None
 
-    # Google OAuth (unused in sample mode)
     google_client_id: Optional[str] = None
     google_client_secret: Optional[str] = None
+    google_api_scopes: Optional[str] = None
+    google_redirect_uri: Optional[str] = None
+
+    openrouter_api_key: Optional[str] = None  # DeepSeek via OpenRouter
 
     @property
     def sample_mode(self) -> bool:
-        """
-        Indicates whether the app is running without external APIs.
-        Sample mode is enabled when required keys are not provided.
-        """
-        return not (self.supabase_url and self.supabase_anon_key)
-
+        """If core providers are missing keys, run in sample/mock mode."""
+        # Feel free to tighten this condition if you want partial live features.
+        has_supabase = bool(self.supabase_url and self.supabase_anon_key)
+        return not has_supabase
 
 def load_settings() -> Settings:
     return Settings()
