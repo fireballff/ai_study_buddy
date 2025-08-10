@@ -14,7 +14,6 @@ The app helps students organize tasks, plan study sessions, and schedule their c
 ## Development
 
 1. Create a virtual environment and install dependencies:
-
    ```bash
    python -m venv .venv
    source .venv/bin/activate  # or .venv\Scripts\activate on Windows
@@ -25,19 +24,16 @@ The app helps students organize tasks, plan study sessions, and schedule their c
 2. Copy `.env.sample` to `.env` and modify values if connecting to Supabase/Google.
 
 3. Run the application:
-
    ```bash
    python scripts/dev_run.py
    ```
 
 4. Run tests with pytest:
-
    ```bash
    pytest -q
    ```
 
 5. Build a standalone executable (PyInstaller):
-
    ```bash
    pyinstaller packaging/pyinstaller.spec
    ```
