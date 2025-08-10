@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from project.db import get_engine
 
 
@@ -73,7 +73,7 @@ class GoogleCalendarClient:
         """
         allowed = {"title", "start_time", "end_time", "type", "description"}
         set_clauses = []
-        params: Dict[str, str] = {"id": event_id}
+        params: Dict[str, Any] = {"id": event_id}
         for field, value in updates.items():
             if field not in allowed:
                 continue
