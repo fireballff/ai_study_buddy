@@ -1,0 +1,11 @@
+PyQt6
+pydantic
+pydantic-settings
+python-dotenv
+structlog
+alembic
+SQLAlchemy
+supabase
+python-dateutil
+fuzzywuzzy
+pytest
