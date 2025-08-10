@@ -125,7 +125,7 @@ class GoogleCalendarClient:
                 conn.execute(text(f"INSERT INTO events ({cols}) VALUES ({binds})"), norm)
                 event_id = conn.execute(text("SELECT last_insert_rowid() AS id")).scalar_one()
                 if event_id is None:
-                    raise ValueError("Failed to retrieve event id after insert or update.")
+                    raise ValueError("Failed to retrieve event id after insert.")
                 return int(event_id)
             else:
                 # Update path
