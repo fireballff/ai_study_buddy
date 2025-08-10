@@ -16,7 +16,7 @@ qt_datas = collect_data_files("PyQt6")
 
 # Ship extras with the app
 extra_datas = [
-    (str(REPO_ROOT / ".env.sample"), "."),
+    (str(REPO_ROOT / ".env"), "."),
     (str(REPO_ROOT / "README.md"), "."),
     (str(REPO_ROOT / "migrations"), "migrations"),
 ]
