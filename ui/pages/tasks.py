@@ -1,0 +1,92 @@
+from __future__ import annotations
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem
+from PyQt6.QtCore import Qt
+from datetime import datetime
+from project.db import get_engine
+from integrations.google_calendar import GoogleCalendarClient
+from agents.task_breakdown import breakdown_task
+import sqlite3
+
+
+class TasksPage(QWidget):
+    """
+    Page to display and manage user tasks. Allows adding tasks and viewing existing ones.
+    """
+    def __init__(self, engine, parent=None):
+        super().__init__(parent)
+        self.engine = engine
+        layout = QVBoxLayout(self)
+        title = QLabel("Tasks")
+        title.setObjectName("page-title")
+        layout.addWidget(title)
+
+        self.add_btn = QPushButton("Add Task")
+        self.add_btn.clicked.connect(self.on_add_task)
+        layout.addWidget(self.add_btn)
+
+        self.list_widget = QListWidget()
+        layout.addWidget(self.list_widget)
+
+        layout.addStretch(1)
+        self.refresh_list()
+
+    def refresh_list(self):
+        """Load tasks from DB and display them in the list widget."""
+        self.list_widget.clear()
+        with self.engine.begin() as conn:
+            rows = conn.execute(
+                "SELECT id, title, type, estimated_duration, due_date, state, start_time, end_time FROM tasks ORDER BY created_at"
+            ).fetchall()
+            for row in rows:
+                task_id, title, ttype, duration, due, state, start, end = row
+                due_str = f"Due: {due}" if due else ""
+                state_str = f"[{state}]"
+                time_str = ""
+                if start and end:
+                    time_str = f" | {start} → {end}"
+                item_text = f"#{task_id}: {title} ({ttype}, {duration}m) {state_str} {due_str}{time_str}"
+                self.list_widget.addItem(QListWidgetItem(item_text))
+
+    def on_add_task(self):
+        from PyQt6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QComboBox, QDateTimeEdit, QSpinBox
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("New Task")
+        layout = QFormLayout(dialog)
+        title_edit = QLineEdit()
+        layout.addRow("Title", title_edit)
+        type_combo = QComboBox()
+        type_combo.addItems(["homework", "study", "test", "class", "meeting", "project"])
+        layout.addRow("Type", type_combo)
+        duration_spin = QSpinBox()
+        duration_spin.setRange(15, 480)
+        duration_spin.setValue(60)
+        layout.addRow("Estimated Duration (min)", duration_spin)
+        due_edit = QDateTimeEdit()
+        due_edit.setCalendarPopup(True)
+        due_edit.setDateTime(datetime.now())
+        layout.addRow("Due Date (optional)", due_edit)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        layout.addRow(buttons)
+
+        def accept():
+            title = title_edit.text().strip()
+            if not title:
+                return
+            ttype = type_combo.currentText()
+            duration = duration_spin.value()
+            due_dt = due_edit.dateTime().toPyDateTime()
+            due_iso = due_dt.isoformat() if due_dt else None
+            # Insert into DB
+            with self.engine.begin() as conn:
+                conn.execute(
+                    "INSERT INTO tasks (title, type, estimated_duration, due_date) VALUES (:title, :type, :duration, :due)",
+                    {"title": title, "type": ttype, "duration": duration, "due": due_iso},
+                )
+            dialog.accept()
+            self.refresh_list()
+
+        buttons.accepted.connect(accept)
+        buttons.rejected.connect(dialog.reject)
+        dialog.exec()
