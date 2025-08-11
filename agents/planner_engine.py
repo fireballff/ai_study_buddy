@@ -5,6 +5,8 @@ from typing import List, Dict, Optional, Tuple
 from collections import defaultdict
 
 from project.prefs import UserPrefs
+from project import metrics
+from project.settings import load_settings
 
 
 def _to_datetime(value: Optional[datetime | date | str], end_of_day: time) -> Optional[datetime]:
@@ -93,6 +95,8 @@ def schedule(tasks: List[Dict], events: List[Dict], blocks: List[Dict], prefs: U
 
     sessions: List[Dict] = []
     sessions_per_day: defaultdict[date, int] = defaultdict(int)
+    settings = load_settings()
+    use_learning = getattr(settings, "enable_learning_loop", False)
 
     # Scheduler loop
     for task in tasks_sorted:
@@ -118,7 +122,12 @@ def schedule(tasks: List[Dict], events: List[Dict], blocks: List[Dict], prefs: U
             if available <= 0:
                 i += 1
                 continue
-            chunk = min(prefs.default_session_minutes, remaining, available)
+            session_minutes = prefs.default_session_minutes
+            if use_learning:
+                session_minutes = metrics.get_estimate(
+                    task.get("type"), task.get("course_label"), session_minutes
+                )
+            chunk = min(session_minutes, remaining, available)
             session_start = slot_start
             session_end = session_start + timedelta(minutes=chunk)
             sessions.append({
