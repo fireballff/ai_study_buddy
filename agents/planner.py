@@ -4,9 +4,11 @@ from typing import List, Dict, Tuple
 import os
 
 from integrations.google_calendar import GoogleCalendarClient
+from agents.nudges import generate_nudges
 
 
 ENABLE_LIVE_RESCHEDULE = os.getenv("ENABLE_LIVE_RESCHEDULE", "false").lower() == "true"
+ENABLE_MICRO_COACHING = os.getenv("ENABLE_MICRO_COACHING", "false").lower() == "true"
 
 
 def schedule_tasks(
@@ -81,6 +83,11 @@ def schedule_tasks(
                 start_time=start,
                 end_time=end,
             )
+
+    if ENABLE_MICRO_COACHING:
+        nudges = generate_nudges(scheduled, tasks)
+        return scheduled, nudges
+
     return scheduled
 
 
