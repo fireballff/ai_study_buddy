@@ -103,3 +103,33 @@ class CalendarModel:
             conn.execute(
                 text(f"DELETE FROM {table} WHERE id = :id"), {"id": item.id}
             )
+
+    def update_item_time(
+        self, item: CalendarItem, new_start: datetime, new_end: datetime
+    ) -> None:
+        """Persist a time change for a calendar item.
+
+        Only application-owned events and tasks can be updated. External
+        calendar events are ignored to avoid mutating data the app does not
+        control.
+        """
+
+        # guard against modifying third-party events
+        if item.table == "events" and item.source != "app":
+            return
+
+        with self.engine.begin() as conn:
+            conn.execute(
+                text(
+                    f"""
+                    UPDATE {item.table}
+                    SET start_time = :start, end_time = :end
+                    WHERE id = :id
+                    """
+                ),
+                {
+                    "start": new_start.astimezone(self.tz).isoformat(),
+                    "end": new_end.astimezone(self.tz).isoformat(),
+                    "id": item.id,
+                },
+            )
