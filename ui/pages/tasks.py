@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
 )
 from datetime import datetime
 from sqlalchemy import text
+from agents import classifier
 
 
 class TasksPage(QWidget):
@@ -39,17 +40,19 @@ class TasksPage(QWidget):
         with self.engine.begin() as conn:
             rows = conn.execute(
                 text(
-                    "SELECT id, title, type, estimated_duration, due_date, state, start_time, end_time FROM tasks ORDER BY created_at"
+                    "SELECT id, title, type, estimated_duration, due_date, state, start_time, end_time, course_label, priority FROM tasks ORDER BY created_at"
                 )
             ).fetchall()
             for row in rows:
-                task_id, title, ttype, duration, due, state, start, end = row
+                task_id, title, ttype, duration, due, state, start, end, course, priority = row
                 due_str = f"Due: {due}" if due else ""
                 state_str = f"[{state}]"
                 time_str = ""
                 if start and end:
                     time_str = f" | {start} → {end}"
-                item_text = f"#{task_id}: {title} ({ttype}, {duration}m) {state_str} {due_str}{time_str}"
+                course_str = f"[{course}]" if course else ""
+                priority_str = f"P{priority}" if priority is not None else ""
+                item_text = f"#{task_id}: {title} {course_str} {priority_str} ({ttype}, {duration}m) {state_str} {due_str}{time_str}"
                 self.list_widget.addItem(QListWidgetItem(item_text))
 
     def on_add_task(self):
@@ -70,6 +73,7 @@ class TasksPage(QWidget):
         title_edit = QLineEdit()
         layout.addRow("Title", title_edit)
         type_combo = QComboBox()
+        type_combo.addItem("")
         type_combo.addItems(["homework", "study", "test", "class", "meeting", "project"])
         layout.addRow("Type", type_combo)
         duration_spin = QSpinBox()
@@ -91,20 +95,25 @@ class TasksPage(QWidget):
             title = title_edit.text().strip()
             if not title:
                 return
-            ttype = type_combo.currentText()
+            ttype = type_combo.currentText().strip()
             duration = duration_spin.value()
             if due_checkbox.isChecked():
                 due_dt = due_edit.dateTime().toPyDateTime()
                 due_iso = due_dt.isoformat()
             else:
                 due_iso = None
+            classification = classifier.classify(title)
+            if not ttype:
+                ttype = classification["type"]
+            course_label = classification.get("course_label")
+            priority = classification.get("priority")
             # Insert into DB
             with self.engine.begin() as conn:
                 conn.execute(
                     text(
-                        "INSERT INTO tasks (title, type, estimated_duration, due_date) VALUES (:title, :type, :duration, :due)"
+                        "INSERT INTO tasks (title, type, estimated_duration, due_date, course_label, priority) VALUES (:title, :type, :duration, :due, :course, :priority)"
                     ),
-                    {"title": title, "type": ttype, "duration": duration, "due": due_iso},
+                    {"title": title, "type": ttype, "duration": duration, "due": due_iso, "course": course_label, "priority": priority},
                 )
             dialog.accept()
             self.refresh_list()
