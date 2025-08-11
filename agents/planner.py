@@ -1,9 +1,22 @@
 from __future__ import annotations
 from datetime import datetime, timedelta, date, time
 from typing import List, Dict, Tuple
+import os
+
+from integrations.google_calendar import GoogleCalendarClient
 
 
-def schedule_tasks(tasks: List[Dict], events: List[Dict], *, work_start: time = time(8, 0), work_end: time = time(20, 0)) -> List[Dict]:
+ENABLE_LIVE_RESCHEDULE = os.getenv("ENABLE_LIVE_RESCHEDULE", "false").lower() == "true"
+
+
+def schedule_tasks(
+    tasks: List[Dict],
+    events: List[Dict],
+    *,
+    work_start: time = time(8, 0),
+    work_end: time = time(20, 0),
+    calendar_client: GoogleCalendarClient | None = None,
+) -> List[Dict]:
     """
     Simple scheduling algorithm: places tasks in available time slots between events.
 
@@ -29,6 +42,9 @@ def schedule_tasks(tasks: List[Dict], events: List[Dict], *, work_start: time = 
     busy.sort()
 
     scheduled: List[Dict] = []
+    per_task_index: Dict[int, int] = {}
+    if ENABLE_LIVE_RESCHEDULE and calendar_client:
+        calendar_client.ensure_study_calendar()
     for task in tasks_sorted:
         if task.get('start_time') and task.get('end_time'):
             scheduled.append(task)
@@ -56,6 +72,15 @@ def schedule_tasks(tasks: List[Dict], events: List[Dict], *, work_start: time = 
         scheduled.append(task_copy)
         busy.append((start, end))
         busy.sort()
+        if ENABLE_LIVE_RESCHEDULE and calendar_client:
+            idx = per_task_index.get(task['id'], 0)
+            per_task_index[task['id']] = idx + 1
+            calendar_client.upsert_app_event(
+                source_id=f"task:{task['id']}:{idx}",
+                title=task['title'],
+                start_time=start,
+                end_time=end,
+            )
     return scheduled
 
 
