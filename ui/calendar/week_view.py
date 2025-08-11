@@ -1,5 +1,5 @@
 from __future__ import annotations
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, time
 from typing import Dict
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem
 from PyQt6.QtCore import Qt, QDate, QTime, QEvent
@@ -8,6 +8,8 @@ from sqlalchemy.engine import Engine
 from .calendar_model import CalendarModel, CalendarItem
 from .month_view import MonthView
 from .quick_add_dialog import QuickAddDialog
+from .quick_add_inline import QuickAddInline
+from .hover_card import HoverCard
 from .conflicts import TimeRange, find_conflicts
 
 
@@ -24,6 +26,7 @@ class WeekView(QWidget):
         self._drag_item: CalendarItem | None = None
         self._drag_start: tuple[int, int] | None = None
         self._resize_edge: str | None = None
+        self._conflict_ids: set[int] = set()
 
         layout = QVBoxLayout(self)
         self.month = MonthView(self)
@@ -40,6 +43,10 @@ class WeekView(QWidget):
         self.table.setMouseTracking(True)
         self.table.viewport().installEventFilter(self)
         layout.addWidget(self.table, 1)
+
+        self.quick_inline = QuickAddInline(engine, self.table.viewport())
+        self.quick_inline.saved.connect(self.refresh)
+        self.hover_card = HoverCard(engine, self.table.viewport())
 
         # apply local styles
         self._load_styles()
@@ -68,6 +75,7 @@ class WeekView(QWidget):
         items_by_day = self.model.fetch_range(week_start, week_end)
         self.table.clearContents()
         self._cell_items.clear()
+        self._conflict_ids.clear()
         for col in range(7):
             self.table.setHorizontalHeaderItem(col, QTableWidgetItem((week_start + timedelta(days=col)).strftime("%a %d")))
         for day, items in items_by_day.items():
@@ -87,6 +95,7 @@ class WeekView(QWidget):
                 if idx in conflicted:
                     cell.setBackground(Qt.red)
                     cell.setToolTip("Overlaps with another item")
+                    self._conflict_ids.add(item.id)
                 self._cell_items[(row, col)] = item
         # update month badges for current month
         month_start = date(self.current_day.year, self.current_day.month, 1)
@@ -152,6 +161,31 @@ class WeekView(QWidget):
     # ----- drag & drop / resize -----
     def eventFilter(self, source, event):  # type: ignore[override]
         if source is self.table.viewport():
+            if event.type() == QEvent.MouseMove:
+                pos = event.position().toPoint()
+                row = self.table.rowAt(pos.y())
+                col = self.table.columnAt(pos.x())
+                item = self._cell_items.get((row, col))
+                if item:
+                    rect = self.table.visualRect(self.table.model().index(row, col))
+                    global_pos = self.table.viewport().mapToGlobal(rect.topRight())
+                    self.hover_card.show_item(item, conflict=item.id in self._conflict_ids, pos=global_pos)
+                else:
+                    self.hover_card.hide_card()
+                return False
+            if event.type() == QEvent.Leave:
+                self.hover_card.hide_card()
+                return False
+            if event.type() == QEvent.MouseButtonDblClick:
+                pos = event.position().toPoint()
+                row = self.table.rowAt(pos.y())
+                col = self.table.columnAt(pos.x())
+                if (row, col) not in self._cell_items and row >= 0 and col >= 0:
+                    day = self.week_start() + timedelta(days=col)
+                    start_dt = datetime.combine(day, time(row))
+                    rect = self.table.visualRect(self.table.model().index(row, col))
+                    self.quick_inline.start(rect, start_dt)
+                    return True
             if event.type() == QEvent.MouseButtonPress:
                 pos = event.position().toPoint()
                 row = self.table.rowAt(pos.y())

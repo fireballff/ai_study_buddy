@@ -9,7 +9,7 @@ COURSE_PATTERN = re.compile(r"\b([A-Za-z]{2,}[\s-]?\d{2,3})\b")
 # Ordered list of (pattern, type, priority)
 RULES = [
     (re.compile(r"\b(exam|midterm|final|quiz)\b"), "test", 1),
-    (re.compile(r"\b(homework|assignment|worksheet)\b"), "homework", 2),
+    (re.compile(r"\b(homework|assignment|worksheet|hw)\b"), "homework", 2),
     (re.compile(r"\b(project|capstone|milestone)\b"), "project", 2),
     (re.compile(r"\b(class|lecture|seminar)\b"), "class", 3),
     (re.compile(r"\b(meet|meeting)\b"), "meeting", 3),
@@ -27,6 +27,16 @@ def _extract_course_label(text: str) -> Optional[str]:
         # Normalize by removing spaces and hyphens
         return re.sub(r"[\s-]", "", match.group(1)).upper()
     return None
+
+
+def extract_course_label(text: str) -> Optional[str]:
+    """Public helper to fetch a normalized course label from text.
+
+    This wraps the internal ``_extract_course_label`` function so that other
+    modules can reuse the same logic without depending on a private helper.
+    The existing ``classify`` API remains unchanged.
+    """
+    return _extract_course_label(text)
 
 
 def classify(title: str, description: str = "", use_llm: bool = False) -> Dict[str, Optional[str] | int]:
