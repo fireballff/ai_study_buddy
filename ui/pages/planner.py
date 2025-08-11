@@ -2,7 +2,8 @@ from __future__ import annotations
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem
 from PyQt6.QtCore import Qt
 from datetime import datetime, timedelta
-from agents.planner import schedule_tasks
+from agents.planner_engine import schedule
+from project.prefs import load_prefs
 from integrations.google_calendar import GoogleCalendarClient
 from sqlalchemy import text
 
@@ -36,6 +37,7 @@ class PlannerPage(QWidget):
         """
         tasks = []
         events = []
+        blocks = []
 
         # 1) Load pending tasks
         with self.engine.begin() as conn:
@@ -66,23 +68,44 @@ class PlannerPage(QWidget):
         tomorrow = today_start + timedelta(days=1)
         events = events_client.list_events(today_start, tomorrow)
 
-        # 3) Schedule tasks around events
-        scheduled = schedule_tasks(tasks, events)
-
-        # 4) Persist the schedule back to DB
+        # 3) Load user blocks
         with self.engine.begin() as conn:
-            for t in scheduled:
+            block_rows = conn.execute(
+                text("SELECT kind, start_time, end_time, source, description FROM blocks")
+            ).fetchall()
+            for row in block_rows:
+                kind, start_iso, end_iso, source, desc = row
+                blocks.append({
+                    "kind": kind,
+                    "start_time": datetime.fromisoformat(start_iso),
+                    "end_time": datetime.fromisoformat(end_iso),
+                    "source": source,
+                    "description": desc,
+                })
+
+        prefs = load_prefs()
+
+        # 4) Schedule tasks around events and blocks
+        sessions = schedule(tasks, events, blocks, prefs)
+
+        # 5) Persist the first session of each task back to DB
+        first_sessions: dict[int, dict] = {}
+        for s in sessions:
+            if s["task_id"] not in first_sessions:
+                first_sessions[s["task_id"]] = s
+        with self.engine.begin() as conn:
+            for task_id, s in first_sessions.items():
                 conn.execute(
                     text("UPDATE tasks SET start_time = :start, end_time = :end WHERE id = :id"),
                     {
-                        "start": t["start_time"].isoformat(),
-                        "end": t["end_time"].isoformat(),
-                        "id": t["id"],
+                        "start": s["start_time"].isoformat(),
+                        "end": s["end_time"].isoformat(),
+                        "id": task_id,
                     },
                 )
 
-        # 5) Show the plan
-        self.render_schedule(scheduled)
+        # 6) Show the plan
+        self.render_schedule(sessions)
 
     def render_schedule(self, tasks: list[dict]):
         self.list_widget.clear()
