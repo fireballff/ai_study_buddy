@@ -36,16 +36,24 @@ def schedule_tasks(tasks: List[Dict], events: List[Dict], *, work_start: time = 
         duration_minutes = task.get('estimated_duration', 60)
         scheduled_time = _find_slot(duration_minutes, busy, work_start, work_end)
         if scheduled_time is None:
-            # No available slot: schedule at the end of last event within next day
+            # No available slot today: place task after the last busy block,
+            # but roll over to next work day if it exceeds today's work window.
             last_end = busy[-1][1] if busy else datetime.combine(date.today(), work_start)
-            start = (last_end + timedelta(minutes=5)).replace(second=0, microsecond=0)
-            end = start + timedelta(minutes=duration_minutes)
+            tentative_start = (last_end + timedelta(minutes=5)).replace(second=0, microsecond=0)
+            day_end_dt = datetime.combine(tentative_start.date(), work_end)
+            tentative_end = tentative_start + timedelta(minutes=duration_minutes)
+            if tentative_start >= day_end_dt or tentative_end > day_end_dt:
+                next_day = tentative_start.date() + timedelta(days=1)
+                start = datetime.combine(next_day, work_start)
+                end = start + timedelta(minutes=duration_minutes)
+            else:
+                start, end = tentative_start, tentative_end
         else:
             start, end = scheduled_time
-        task = task.copy()
-        task['start_time'] = start
-        task['end_time'] = end
-        scheduled.append(task)
+        task_copy = task.copy()
+        task_copy['start_time'] = start
+        task_copy['end_time'] = end
+        scheduled.append(task_copy)
         busy.append((start, end))
         busy.sort()
     return scheduled
@@ -68,15 +76,14 @@ def _find_slot(duration: int, busy: List[Tuple[datetime, datetime]], work_start:
         if bstart > pointer:
             gap = (bstart - pointer).total_seconds() / 60
             if gap >= duration:
-                return (pointer, pointer + timedelta(minutes=duration))
-            else:
-                pointer = bend
-                continue
+                return pointer, pointer + timedelta(minutes=duration)
+            pointer = bend
+            continue
         else:
             # overlapping or contiguous busy
             if bend > pointer:
                 pointer = bend
     # Check remaining time after last busy interval
     if (day_end - pointer).total_seconds() / 60 >= duration:
-        return (pointer, pointer + timedelta(minutes=duration))
+        return pointer, pointer + timedelta(minutes=duration)
     return None
