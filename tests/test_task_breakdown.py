@@ -22,3 +22,23 @@ def test_breakdown_small_task():
     }
     parts = breakdown_task(task)
     assert parts == []
+
+
+def test_short_study_task_no_split():
+    task = {
+        'title': 'Quick study session',
+        'estimated_duration': 20,
+        'type': 'study',
+    }
+    parts = breakdown_task(task)
+    assert parts == []
+
+
+def test_short_project_task_no_split():
+    task = {
+        'title': 'Minor project prep',
+        'estimated_duration': 45,
+        'type': 'project',
+    }
+    parts = breakdown_task(task)
+    assert parts == []
