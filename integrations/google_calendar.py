@@ -45,7 +45,7 @@ class GoogleCalendarClient:
                 text(
                     "SELECT id, source, source_id, title, start_time, end_time, type, description "
                     "FROM events "
-                    "WHERE start_time >= :start AND end_time <= :end "
+                    "WHERE start_time < :end AND end_time > :start "
                     "ORDER BY start_time"
                 ),
                 {"start": start_time.isoformat(), "end": end_time.isoformat()},
