@@ -36,6 +36,55 @@ class GoogleCalendarClient:
     def __init__(self, engine):
         self.engine = engine
 
+    # ---------- Calendar helpers ----------
+
+    def ensure_study_calendar(self) -> str:
+        """Return identifier for the app's study calendar.
+
+        In sample mode this is a no-op that returns a stub identifier.  The
+        method exists so callers can ensure a dedicated calendar is present in
+        live mode where real Google API keys are supplied.
+        """
+        # Sample mode: simply return a fixed id; live mode would check the API.
+        return "study-tasks"
+
+    def upsert_app_event(
+        self,
+        *,
+        source_id: str,
+        title: str,
+        start_time: datetime,
+        end_time: datetime,
+        description: Optional[str] = None,
+        app_tag: str = "ai-study-buddy",
+    ) -> int:
+        """Idempotently upsert an app-owned event.
+
+        Events are keyed by (source='app', source_id).  If an event already
+        exists its timing/title are updated; otherwise a new row is inserted.
+        """
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                text(
+                    "SELECT id FROM events WHERE source = :source AND source_id = :sid"
+                ),
+                {"source": "app", "sid": source_id},
+            ).fetchone()
+            event_id: Optional[int] = row[0] if row else None
+
+        payload = {
+            "source": "app",
+            "source_id": source_id,
+            "title": title,
+            "start_time": start_time,
+            "end_time": end_time,
+            "type": "study_session",
+            "description": description or "",
+            "app_owned": 1,
+            "app_tag": app_tag,
+        }
+        return self.upsert_event(event_id, payload)
+
     # ---------- Reads ----------
 
     def list_events(self, start_time: datetime, end_time: datetime) -> List[Dict[str, Any]]:
