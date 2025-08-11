@@ -16,3 +16,4 @@ ai_study_buddy.db
 # Build artifacts
 build/
 dist/
+.vscode/settings.json

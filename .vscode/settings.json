@@ -1,6 +1,8 @@
 {
     "cSpell.words": [
         "datas",
+        "dateutil",
+        "dotenv",
         "etype",
         "getcwd",
         "hiddenimports",
@@ -12,8 +14,10 @@
         "pathlib",
         "poolclass",
         "pycache",
+        "pydantic",
         "pyinstaller",
         "pytest",
+        "structlog",
         "Supabase",
         "venv"
     ]
