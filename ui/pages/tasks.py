@@ -1,12 +1,14 @@
 from __future__ import annotations
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QLabel,
+    QPushButton,
+    QListWidget,
+    QListWidgetItem,
+)
 from datetime import datetime
 from sqlalchemy import text
-from project.db import get_engine
-from integrations.google_calendar import GoogleCalendarClient
-from agents.task_breakdown import breakdown_task
-import sqlite3
 
 
 class TasksPage(QWidget):
@@ -51,7 +53,16 @@ class TasksPage(QWidget):
                 self.list_widget.addItem(QListWidgetItem(item_text))
 
     def on_add_task(self):
-        from PyQt6.QtWidgets import QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QComboBox, QDateTimeEdit, QSpinBox
+        from PyQt6.QtWidgets import (
+            QDialog,
+            QFormLayout,
+            QLineEdit,
+            QDialogButtonBox,
+            QComboBox,
+            QDateTimeEdit,
+            QSpinBox,
+            QCheckBox,
+        )
 
         dialog = QDialog(self)
         dialog.setWindowTitle("New Task")
@@ -65,10 +76,13 @@ class TasksPage(QWidget):
         duration_spin.setRange(15, 480)
         duration_spin.setValue(60)
         layout.addRow("Estimated Duration (min)", duration_spin)
+        due_checkbox = QCheckBox("Set Due Date")
         due_edit = QDateTimeEdit()
         due_edit.setCalendarPopup(True)
         due_edit.setDateTime(datetime.now())
-        layout.addRow("Due Date (optional)", due_edit)
+        due_edit.setEnabled(False)
+        due_checkbox.toggled.connect(due_edit.setEnabled)
+        layout.addRow(due_checkbox, due_edit)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         layout.addRow(buttons)
@@ -79,8 +93,11 @@ class TasksPage(QWidget):
                 return
             ttype = type_combo.currentText()
             duration = duration_spin.value()
-            due_dt = due_edit.dateTime().toPyDateTime()
-            due_iso = due_dt.isoformat() if due_dt else None
+            if due_checkbox.isChecked():
+                due_dt = due_edit.dateTime().toPyDateTime()
+                due_iso = due_dt.isoformat()
+            else:
+                due_iso = None
             # Insert into DB
             with self.engine.begin() as conn:
                 conn.execute(
