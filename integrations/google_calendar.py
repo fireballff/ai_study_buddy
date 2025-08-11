@@ -131,7 +131,7 @@ class GoogleCalendarClient:
             if cursor:
                 rows = conn.execute(
                     text(
-                        "SELECT source, source_id, title, start_time, end_time, type, description, updated_at "
+                        "SELECT source, source_id, title, start_time, end_time, type, description, updated_at, etag "
                         "FROM staging_events WHERE updated_at > :cursor ORDER BY updated_at"
                     ),
                     {"cursor": cursor},
@@ -139,12 +139,12 @@ class GoogleCalendarClient:
             else:
                 rows = conn.execute(
                     text(
-                        "SELECT source, source_id, title, start_time, end_time, type, description, updated_at "
+                        "SELECT source, source_id, title, start_time, end_time, type, description, updated_at, etag "
                         "FROM staging_events ORDER BY updated_at"
                     )
                 ).fetchall()
             for row in rows:
-                (source, source_id, title, start_iso, end_iso, etype, desc, _upd) = row
+                (source, source_id, title, start_iso, end_iso, etype, desc, upd, etag) = row
                 merge_event(
                     conn,
                     {
@@ -155,6 +155,8 @@ class GoogleCalendarClient:
                         "end_time": end_iso,
                         "type": etype,
                         "description": desc,
+                        "updated_at": upd,
+                        "etag": etag,
                     },
                 )
             new_cursor = datetime.utcnow().isoformat()
@@ -174,28 +176,17 @@ class GoogleCalendarClient:
         source: str = "local",
         source_id: Optional[str] = None,
     ) -> int:
-        """
-        Insert a new event into the local DB and return its new id.
-        """
+        """Insert a new event into the local DB and return its new id."""
         payload = {
             "source": source,
             "source_id": source_id,
             "title": title,
-            "start_time": start_time.isoformat(),
-            "end_time": end_time.isoformat(),
+            "start_time": start_time,
+            "end_time": end_time,
             "type": etype,
             "description": description,
         }
-        with self.engine.begin() as conn:
-            conn.execute(
-                text(
-                    "INSERT INTO events (source, source_id, title, start_time, end_time, type, description) "
-                    "VALUES (:source, :source_id, :title, :start_time, :end_time, :type, :description)"
-                ),
-                payload,
-            )
-            new_id = conn.execute(text("SELECT last_insert_rowid() AS id")).scalar_one()
-        return int(new_id)
+        return self.upsert_event(None, payload)
 
     def upsert_event(self, event_id: Optional[int], updates: Dict[str, Any]) -> int:
         """
@@ -211,6 +202,9 @@ class GoogleCalendarClient:
                 norm[k] = v
 
         with self.engine.begin() as conn:
+            cols = {row[1] for row in conn.execute(text("PRAGMA table_info(events)"))}
+            if "updated_at" in cols:
+                norm.setdefault("updated_at", datetime.utcnow().isoformat())
             if event_id is None:
                 # Insert path
                 cols = ", ".join(norm.keys())
