@@ -24,5 +24,17 @@ def plan_week(payload: Any) -> None:
 
 @register(JobType.SYNC_APP_EVENTS)
 def sync_app_events(payload: Any) -> None:
-    """Placeholder sync job."""
-    pass
+    """Background job to sync application events.
+
+    ``payload`` expects a ``client`` key containing an instance of
+    :class:`integrations.google_calendar.GoogleCalendarClient`.  The client is
+    asked to perform an incremental fetch using any provided ``cursor``.  Any
+    exception raised bubbles up to the worker which will trigger retry/backoff
+    behaviour.
+    """
+    client = payload.get("client")
+    if client is None:
+        raise ValueError("sync_app_events requires a 'client' in payload")
+    provider = payload.get("provider", "google")
+    cursor = payload.get("cursor")
+    client.fetch_since(provider, cursor)

@@ -45,9 +45,25 @@ class WorkerPool(QObject):
         self.pool = QThreadPool()
         self.logger = logger or structlog.get_logger(__name__)
 
-    def submit(self, job_type: JobType, payload: Any = None, attempts: int = 3, backoff: float = 1.5) -> None:
-        runnable = JobRunnable(self, job_type, payload, attempts, backoff)
-        self.pool.start(runnable)
+    def submit(
+        self,
+        job_type: JobType,
+        payload: Any = None,
+        attempts: int = 3,
+        backoff: float = 1.5,
+        delay: float = 0.0,
+    ) -> None:
+        """Schedule a job for background execution.
+
+        ``delay`` allows callers to defer the first attempt which can be useful
+        when scheduling periodic syncs.
+        """
+        runnable = JobRunnable(self, job_type, payload, attempts, backoff, delay)
+        if delay:
+            timer = threading.Timer(delay, lambda: self.pool.start(runnable))
+            timer.start()
+        else:
+            self.pool.start(runnable)
 
 worker_pool: WorkerPool | None = None
 
