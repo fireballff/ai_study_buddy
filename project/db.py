@@ -1,7 +1,6 @@
 from __future__ import annotations
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
-from datetime import datetime
 
 
 def get_engine(sqlite_path: str) -> Engine:
