@@ -2,6 +2,7 @@ from __future__ import annotations
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem
 from PyQt6.QtCore import Qt
 from datetime import datetime
+from sqlalchemy import text
 from project.db import get_engine
 from integrations.google_calendar import GoogleCalendarClient
 from agents.task_breakdown import breakdown_task
@@ -35,7 +36,9 @@ class TasksPage(QWidget):
         self.list_widget.clear()
         with self.engine.begin() as conn:
             rows = conn.execute(
-                "SELECT id, title, type, estimated_duration, due_date, state, start_time, end_time FROM tasks ORDER BY created_at"
+                text(
+                    "SELECT id, title, type, estimated_duration, due_date, state, start_time, end_time FROM tasks ORDER BY created_at"
+                )
             ).fetchall()
             for row in rows:
                 task_id, title, ttype, duration, due, state, start, end = row
@@ -81,7 +84,9 @@ class TasksPage(QWidget):
             # Insert into DB
             with self.engine.begin() as conn:
                 conn.execute(
-                    "INSERT INTO tasks (title, type, estimated_duration, due_date) VALUES (:title, :type, :duration, :due)",
+                    text(
+                        "INSERT INTO tasks (title, type, estimated_duration, due_date) VALUES (:title, :type, :duration, :due)"
+                    ),
                     {"title": title, "type": ttype, "duration": duration, "due": due_iso},
                 )
             dialog.accept()
