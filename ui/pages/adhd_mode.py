@@ -2,6 +2,7 @@ from __future__ import annotations
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem
 from PyQt6.QtCore import QTimer, Qt
 from datetime import datetime
+from sqlalchemy import text
 from project.db import get_engine
 
 
@@ -48,7 +49,9 @@ class ADHDModePage(QWidget):
         self.list_widget.clear()
         with self.engine.begin() as conn:
             rows = conn.execute(
-                "SELECT id, title, type, start_time, end_time FROM tasks WHERE state = 'pending' ORDER BY start_time"
+                text(
+                    "SELECT id, title, type, start_time, end_time FROM tasks WHERE state = 'pending' ORDER BY start_time"
+                )
             ).fetchall()
             for row in rows:
                 id_, title, ttype, start, end = row
