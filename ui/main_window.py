@@ -1,5 +1,5 @@
 from __future__ import annotations
-from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QStackedWidget
+from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QStackedWidget, QVBoxLayout
 from project.settings import Settings, load_settings
 from project.db import get_engine, ensure_db
 from integrations.auth_supabase import SupabaseAuth
@@ -56,7 +56,24 @@ class MainWindow(QMainWindow):
             self.stack.addWidget(self.pages[key])
 
         root.addWidget(self.sidebar)
-        root.addWidget(self.stack, 1)
+
+        if self.settings.enable_adhd_mode:
+            from ui.adhd.timer_widget import TimerWidget
+            from ui.adhd.focus_timeline import FocusTimeline
+            from ui.adhd.one_thing_now import OneThingNow
+
+            self.sidebar.hide()
+            panel = QWidget(self)
+            panel_layout = QVBoxLayout(panel)
+            self.timer_widget = TimerWidget(self.settings, self)
+            self.one_thing_now = OneThingNow(self)
+            self.focus_timeline = FocusTimeline(self)
+            panel_layout.addWidget(self.timer_widget)
+            panel_layout.addWidget(self.one_thing_now)
+            panel_layout.addWidget(self.focus_timeline)
+            root.addWidget(panel, 1)
+        else:
+            root.addWidget(self.stack, 1)
 
         self.setCentralWidget(container)
 

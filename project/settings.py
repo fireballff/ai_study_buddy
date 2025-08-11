@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_log_level: str = "INFO"
     enable_dark_mode: bool = False
+    enable_adhd_mode: bool = False
+    preferred_timer_mode: str = "25/5"
 
     # Keyboard shortcuts (defaults)
     shortcut_new_item: str = "N"
