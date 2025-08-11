@@ -2,6 +2,7 @@ from __future__ import annotations
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 from pathlib import Path
+from pydantic import Field
 import os
 import platform
 
@@ -24,7 +25,8 @@ class Settings(BaseSettings):
     enable_dark_mode: bool = False
 
     # Storage defaults — put DB under user AppData unless SQLITE_PATH is set
-    def _default_appdata(self) -> Path:
+    @staticmethod
+    def _default_appdata() -> Path:
         sys = platform.system()
         if sys == "Windows":
             base = Path(os.getenv("APPDATA", Path.home() / "AppData" / "Roaming"))
@@ -36,9 +38,8 @@ class Settings(BaseSettings):
         d.mkdir(parents=True, exist_ok=True)
         return d
 
-    sqlite_path: str = (
-        os.getenv("SQLITE_PATH")
-        or str((_default_appdata.__get__(object)()) / "ai_study_buddy.db")
+    sqlite_path: str = Field(
+        default_factory=lambda: str(Settings._default_appdata() / "ai_study_buddy.db")
     )
 
     # Providers (kept optional; presence flips from sample→live mode)
