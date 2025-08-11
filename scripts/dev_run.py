@@ -6,11 +6,13 @@ from project.logging import configure_logging
 from project.db import get_engine, ensure_db
 from ui.main_window import MainWindow
 from utils.error_handler import install_global_exception_hook
+from utils.workers import init_worker_pool
 
 
 def main():
     settings = load_settings()
     logger = configure_logging(settings.app_log_level)
+    init_worker_pool(logger)
     engine = get_engine(settings.sqlite_path)
     ensure_db(engine)
     install_global_exception_hook(logger)

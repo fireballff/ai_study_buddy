@@ -21,3 +21,8 @@ def configure_logging(level: str = "INFO") -> structlog.BoundLogger:
         cache_logger_on_first_use=True,
     )
     return structlog.get_logger()
+
+
+def get_logger() -> structlog.BoundLogger:
+    """Return a bound logger configured for the application."""
+    return structlog.get_logger()
