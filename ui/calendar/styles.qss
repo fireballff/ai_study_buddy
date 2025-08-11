@@ -1,0 +1,6 @@
+QTableWidget {
+    gridline-color: palette(midlight);
+}
+QCalendarWidget QAbstractItemView:disabled {
+    color: palette(mid);
+}

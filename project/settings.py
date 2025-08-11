@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     app_log_level: str = "INFO"
     enable_dark_mode: bool = False
 
+    # Keyboard shortcuts (defaults)
+    shortcut_new_item: str = "N"
+    shortcut_delete_item: str = "Delete"
+    shortcut_edit_item: str = "E"
+    shortcut_quick_add: str = "Ctrl+K"
+
     # Storage defaults — put DB under user AppData unless SQLITE_PATH is set
     @staticmethod
     def _default_appdata() -> Path:
