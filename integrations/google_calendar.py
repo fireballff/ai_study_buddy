@@ -3,6 +3,8 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from sqlalchemy import text
 
+from project.db_merge import merge_event, get_cursor, set_cursor
+
 
 def _to_dt(val: Optional[str | datetime]) -> Optional[datetime]:
     """Accept ISO string or datetime; return datetime or None."""
@@ -67,6 +69,48 @@ class GoogleCalendarClient:
                 }
             )
         return events
+
+    def fetch_since(self, provider: str = "google", since_cursor: Optional[str] = None) -> str:
+        """Merge events from staging_events updated after the cursor.
+
+        If ``since_cursor`` is not provided, the last stored cursor for the
+        provider is used. Merged events are written to the ``events`` table via
+        :func:`merge_event`. The sync cursor is then advanced to ``datetime.utcnow()``.
+        """
+        with self.engine.begin() as conn:
+            cursor = since_cursor or get_cursor(conn, provider)
+            if cursor:
+                rows = conn.execute(
+                    text(
+                        "SELECT source, source_id, title, start_time, end_time, type, description, updated_at "
+                        "FROM staging_events WHERE updated_at > :cursor ORDER BY updated_at"
+                    ),
+                    {"cursor": cursor},
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    text(
+                        "SELECT source, source_id, title, start_time, end_time, type, description, updated_at "
+                        "FROM staging_events ORDER BY updated_at"
+                    )
+                ).fetchall()
+            for row in rows:
+                (source, source_id, title, start_iso, end_iso, etype, desc, _upd) = row
+                merge_event(
+                    conn,
+                    {
+                        "source": source,
+                        "source_id": source_id,
+                        "title": title,
+                        "start_time": start_iso,
+                        "end_time": end_iso,
+                        "type": etype,
+                        "description": desc,
+                    },
+                )
+            new_cursor = datetime.utcnow().isoformat()
+            set_cursor(conn, provider, new_cursor)
+        return new_cursor
 
     # ---------- Writes (for future two-way sync) ----------
 
