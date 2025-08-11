@@ -5,7 +5,7 @@ from project.db import get_engine, ensure_db
 from integrations.auth_supabase import SupabaseAuth
 from ui.components.sidebar import Sidebar
 from ui.pages.home import HomePage
-from ui.pages.calendar import CalendarPage
+from ui.calendar.week_view import WeekView
 from ui.pages.tasks import TasksPage
 from ui.pages.planner import PlannerPage
 from ui.pages.settings_page import SettingsPage
@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
         # Instantiate pages with dependencies
         self.pages = {
             "home": HomePage(self),
-            "calendar": CalendarPage(self),
+            "calendar": WeekView(self.engine, self),
             "tasks": TasksPage(self.engine, self),
             "planner": PlannerPage(self.engine, self),
             "settings": SettingsPage(self.settings, self.auth, self),
