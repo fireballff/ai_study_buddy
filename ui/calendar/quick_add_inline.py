@@ -6,19 +6,25 @@ from uuid import uuid4
 from typing import Optional, Dict, Any
 
 try:  # pragma: no cover - used only when Qt is installed
-    from PyQt6.QtWidgets import QLineEdit as _QLineEdit
+    from PyQt6.QtWidgets import QLineEdit as BaseQLineEdit
     from PyQt6.QtCore import Qt, pyqtSignal, QRect  # type: ignore
     QT_AVAILABLE = True
-
-    class BaseQLineEdit(_QLineEdit):
-        pass
-
 except Exception:  # pragma: no cover - allows parser tests without Qt libs
     QT_AVAILABLE = False
 
+    class _DummySignal:  # pragma: no cover - simple signal stand-in
+        def connect(self, *a, **k):
+            pass
+
+        def emit(self, *a, **k):
+            pass
+
+    def pyqtSignal(*args, **kwargs):  # type: ignore
+        return _DummySignal()
+
     class BaseQLineEdit:
         def __init__(self, *args, **kwargs):
-            pass
+            self.returnPressed = _DummySignal()
 
         def hide(self):
             pass
@@ -37,22 +43,6 @@ except Exception:  # pragma: no cover - allows parser tests without Qt libs
 
         def text(self):
             return ""
-
-        def returnPressed(self):
-            return self
-
-        def connect(self, func):
-            pass
-
-    def pyqtSignal(*args, **kwargs):  # type: ignore
-        class _DummySignal:
-            def connect(self, *a, **k):
-                pass
-
-            def emit(self, *a, **k):
-                pass
-
-        return _DummySignal()
 
     class QRect:  # type: ignore
         pass
@@ -136,8 +126,8 @@ def parse_inline(text: str, default_start: datetime) -> Dict[str, Any]:
         minute = int(tm_match.group(2) or 0)
         ampm = tm_match.group(3)
         if ampm:
-class QuickAddInline(BaseQLineEdit):
-    """Inline quick-add entry displayed over the calendar grid."""
+            ampm = ampm.lower()
+            if ampm == "pm" and hour != 12:
                 hour += 12
             if ampm == "am" and hour == 12:
                 hour = 0
@@ -165,7 +155,7 @@ class QuickAddInline(BaseQLineEdit):
 
 
 # ----- widget -----
-class QuickAddInline(QLineEdit):
+class QuickAddInline(BaseQLineEdit):
     """Inline quick-add entry displayed over the calendar grid."""
 
     saved = pyqtSignal()
