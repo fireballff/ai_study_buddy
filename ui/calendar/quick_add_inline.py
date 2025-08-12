@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timedelta, time, date
 from uuid import uuid4
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple, Union
 
 try:  # pragma: no cover - used only when Qt is installed
     from PyQt6.QtWidgets import QLineEdit as BaseQLineEdit
@@ -71,6 +71,14 @@ DURATION_PATTERN = re.compile(r"(\d+)\s*(h|m)", re.IGNORECASE)
 
 
 def _next_weekday(start: date, target: int) -> date:
+    """Return the next date matching ``target`` weekday.
+
+    ``target`` is an integer where Monday is 0.  If ``start`` already falls on
+    the requested weekday the *following* week is returned.  This mirrors the
+    semantics users expect when typing things like "@ Mon" while planning later
+    in the current week.
+    """
+
     days_ahead = target - start.weekday()
     if days_ahead <= 0:
         days_ahead += 7
@@ -109,9 +117,9 @@ def parse_inline(text: str, default_start: datetime) -> Dict[str, Any]:
     tm = default_start.time()
     dt_part = ""
     if "@" in remaining:
-        remaining, dt_part = remaining.split("@", 1)
+        remaining, dt_part = map(str.strip, remaining.split("@", 1))
     else:
-        dt_part = remaining
+        dt_part = remaining.strip()
     if re.search(r"\btomorrow\b", dt_part, re.IGNORECASE):
         day = default_start.date() + timedelta(days=1)
         dt_part = re.sub(r"\btomorrow\b", "", dt_part, flags=re.IGNORECASE)
@@ -167,11 +175,27 @@ class QuickAddInline(BaseQLineEdit):
         self.hide()
         self.returnPressed.connect(self.commit)
 
-    def start(self, rect, default_start: datetime) -> None:
-        if isinstance(rect, QRect):
-            self.setGeometry(rect)
-        else:
-            self.setGeometry(rect)
+    def start(
+        self,
+        rect: Union[QRect, Tuple[int, int, int, int]],
+        default_start: datetime,
+    ) -> None:
+        """Display the inline editor at *rect*.
+
+        ``QLineEdit.setGeometry`` expects a ``QRect`` instance, but call sites may
+        provide a simple tuple.  The original implementation attempted to handle
+        both but ended up calling ``setGeometry`` with the tuple directly, which
+        raises a ``TypeError``.  We now normalise the argument to a ``QRect`` when
+        Qt is available.
+        """
+
+        if not isinstance(rect, QRect):
+            if QT_AVAILABLE:
+                rect = QRect(*rect)
+            else:  # pragma: no cover - GUI isn't used in tests
+                raise TypeError("rect must be a QRect when Qt is unavailable")
+
+        self.setGeometry(rect)
         self._default_start = default_start
         self.clear()
         self.show()
