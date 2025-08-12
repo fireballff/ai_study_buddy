@@ -39,7 +39,8 @@ def merge_event(conn, event: Dict[str, Any], logger: Optional[structlog.BoundLog
           the unsynced changes.
         - Otherwise, whichever side has the newer ``updated_at`` wins.
     """
-    logger = logger or structlog.get_logger(__name__)
+    if logger is None or not hasattr(logger, "warning"):
+        logger = structlog.get_logger(__name__)
     payload = _norm_event(event)
     lookup = {"source": payload["source"], "source_id": payload["source_id"]}
     row = conn.execute(
@@ -76,7 +77,8 @@ def merge_event(conn, event: Dict[str, Any], logger: Optional[structlog.BoundLog
                 ),
                 conflict_payload,
             )
-            logger.warning("sync_conflict", source_id=lookup["source_id"])
+            if logger is not None and hasattr(logger, "warning"):
+                logger.warning("sync_conflict", source_id=lookup["source_id"])
         keep_remote = not local_edited or remote_updated >= local_updated
         if keep_remote:
             conn.execute(

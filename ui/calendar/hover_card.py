@@ -13,9 +13,9 @@ class HoverCard(QFrame):
     """Small floating card shown when hovering over a calendar item."""
 
     def __init__(self, engine: Engine, parent=None):
-        super().__init__(parent, Qt.ToolTip)
+        super().__init__(parent, Qt.WindowType.ToolTip)
         self.engine = engine
-        self.setWindowFlags(Qt.ToolTip)
+        self.setWindowFlags(Qt.WindowType.ToolTip)
         layout = QVBoxLayout(self)
         self.label = QLabel("", self)
         layout.addWidget(self.label)
