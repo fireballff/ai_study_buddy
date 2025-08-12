@@ -6,14 +6,43 @@ from uuid import uuid4
 from typing import Optional, Dict, Any
 
 try:  # pragma: no cover - used only when Qt is installed
-    from PyQt6.QtWidgets import QLineEdit
-    from PyQt6.QtCore import Qt, pyqtSignal, QRect
+    from PyQt6.QtWidgets import QLineEdit as _QLineEdit
+    from PyQt6.QtCore import Qt, pyqtSignal, QRect  # type: ignore
     QT_AVAILABLE = True
+
+    class BaseQLineEdit(_QLineEdit):
+        pass
+
 except Exception:  # pragma: no cover - allows parser tests without Qt libs
     QT_AVAILABLE = False
 
-    class QLineEdit:  # type: ignore
-        pass
+    class BaseQLineEdit:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def hide(self):
+            pass
+
+        def show(self):
+            pass
+
+        def setGeometry(self, rect):
+            pass
+
+        def clear(self):
+            pass
+
+        def setFocus(self):
+            pass
+
+        def text(self):
+            return ""
+
+        def returnPressed(self):
+            return self
+
+        def connect(self, func):
+            pass
 
     def pyqtSignal(*args, **kwargs):  # type: ignore
         class _DummySignal:
@@ -73,7 +102,7 @@ def parse_inline(text: str, default_start: datetime) -> Dict[str, Any]:
             remaining = remaining.replace(explicit_course.group(0), "")
     else:
         c = classifier.extract_course_label(remaining)
-        if c:
+        if isinstance(c, str):
             course = c
 
     # duration
@@ -107,8 +136,8 @@ def parse_inline(text: str, default_start: datetime) -> Dict[str, Any]:
         minute = int(tm_match.group(2) or 0)
         ampm = tm_match.group(3)
         if ampm:
-            ampm = ampm.lower()
-            if ampm == "pm" and hour < 12:
+class QuickAddInline(BaseQLineEdit):
+    """Inline quick-add entry displayed over the calendar grid."""
                 hour += 12
             if ampm == "am" and hour == 12:
                 hour = 0

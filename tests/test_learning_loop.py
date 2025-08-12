@@ -48,6 +48,7 @@ def test_record_session_logs(tmp_path, monkeypatch):
     with engine.begin() as conn:
         row = conn.execute(text("SELECT task_id, planned_minutes, actual_minutes, type, course_label FROM session_log"))
         rec = row.fetchone()
+        assert rec is not None
         assert rec.task_id == 1
         assert rec.planned_minutes == 50
         assert rec.actual_minutes == 40

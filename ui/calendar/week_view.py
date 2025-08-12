@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta, time
 from typing import Dict
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem
 from PyQt6.QtCore import Qt, QDate, QTime, QEvent
+from PyQt6.QtGui import QColor
 from sqlalchemy.engine import Engine
 
 from .calendar_model import CalendarModel, CalendarItem
@@ -37,11 +38,17 @@ class WeekView(QWidget):
         self.table.setHorizontalHeaderLabels(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])
         hours = [f"{h:02d}:00" for h in range(24)]
         self.table.setVerticalHeaderLabels(hours)
-        self.table.verticalHeader().setDefaultSectionSize(40)
-        self.table.horizontalHeader().setDefaultSectionSize(120)
+        vertical_header = self.table.verticalHeader()
+        if vertical_header:
+            vertical_header.setDefaultSectionSize(40)
+        horizontal_header = self.table.horizontalHeader()
+        if horizontal_header:
+            horizontal_header.setDefaultSectionSize(120)
         self.table.cellClicked.connect(self.on_cell_clicked)
         self.table.setMouseTracking(True)
-        self.table.viewport().installEventFilter(self)
+        viewport = self.table.viewport()
+        if viewport:
+            viewport.installEventFilter(self)
         layout.addWidget(self.table, 1)
 
         self.quick_inline = QuickAddInline(engine, self.table.viewport())
@@ -91,10 +98,10 @@ class WeekView(QWidget):
                     cell.setText(cell.text() + " / " + text)
                 else:
                     cell = QTableWidgetItem(text)
-                    self.table.setItem(row, col, cell)
                 if idx in conflicted:
-                    cell.setBackground(Qt.red)
+                    cell.setBackground(QColor("red"))
                     cell.setToolTip("Overlaps with another item")
+                    self._conflict_ids.add(item.id)
                     self._conflict_ids.add(item.id)
                 self._cell_items[(row, col)] = item
         # update month badges for current month
@@ -112,10 +119,10 @@ class WeekView(QWidget):
     def keyPressEvent(self, event) -> None:  # type: ignore[override]
         key = event.key()
         modifiers = event.modifiers()
-        if key == Qt.Key_N:
+        if key == Qt.Key.Key_N:
             self.open_quick_add()
             return
-        if key == Qt.Key_Delete and self.selected_item:
+        if key == Qt.Key.Key_Delete and self.selected_item:
             if (
                 self.selected_item.table == "events"
                 and self.selected_item.source == "app"
@@ -123,10 +130,10 @@ class WeekView(QWidget):
                 self.model.delete_item(self.selected_item)
                 self.refresh()
             return
-        if key == Qt.Key_E and self.selected_item:
+        if key == Qt.Key.Key_E and self.selected_item:
             self.edit_selected()
             return
-        if key == Qt.Key_K and (modifiers & Qt.KeyboardModifier.ControlModifier or modifiers & Qt.KeyboardModifier.MetaModifier):
+        if key == Qt.Key.Key_K and (modifiers & Qt.KeyboardModifier.ControlModifier or modifiers & Qt.KeyboardModifier.MetaModifier):
             self.open_quick_add()
             return
         super().keyPressEvent(event)
@@ -161,32 +168,42 @@ class WeekView(QWidget):
     # ----- drag & drop / resize -----
     def eventFilter(self, source, event):  # type: ignore[override]
         if source is self.table.viewport():
-            if event.type() == QEvent.MouseMove:
+            if event.type() == QEvent.Type.MouseMove:
                 pos = event.position().toPoint()
                 row = self.table.rowAt(pos.y())
                 col = self.table.columnAt(pos.x())
                 item = self._cell_items.get((row, col))
                 if item:
-                    rect = self.table.visualRect(self.table.model().index(row, col))
-                    global_pos = self.table.viewport().mapToGlobal(rect.topRight())
-                    self.hover_card.show_item(item, conflict=item.id in self._conflict_ids, pos=global_pos)
+                    model = self.table.model()
+                    if model is not None:
+                        rect = self.table.visualRect(model.index(row, col))
+                        viewport = self.table.viewport()
+                        if viewport is not None:
+                            global_pos = viewport.mapToGlobal(rect.topRight())
+                            self.hover_card.show_item(item, conflict=item.id in self._conflict_ids, pos=global_pos)
+                        else:
+                            self.hover_card.hide_card()
+                    else:
+                        self.hover_card.hide_card()
                 else:
                     self.hover_card.hide_card()
                 return False
-            if event.type() == QEvent.Leave:
+            if event.type() == QEvent.Type.Leave:
                 self.hover_card.hide_card()
                 return False
-            if event.type() == QEvent.MouseButtonDblClick:
+            if event.type() == QEvent.Type.MouseButtonDblClick:
                 pos = event.position().toPoint()
                 row = self.table.rowAt(pos.y())
                 col = self.table.columnAt(pos.x())
                 if (row, col) not in self._cell_items and row >= 0 and col >= 0:
                     day = self.week_start() + timedelta(days=col)
                     start_dt = datetime.combine(day, time(row))
-                    rect = self.table.visualRect(self.table.model().index(row, col))
-                    self.quick_inline.start(rect, start_dt)
-                    return True
-            if event.type() == QEvent.MouseButtonPress:
+                    model = self.table.model()
+                    if model is not None:
+                        rect = self.table.visualRect(model.index(row, col))
+                        self.quick_inline.start(rect, start_dt)
+                        return True
+            if event.type() == QEvent.Type.MouseButtonPress:
                 pos = event.position().toPoint()
                 row = self.table.rowAt(pos.y())
                 col = self.table.columnAt(pos.x())
@@ -196,16 +213,20 @@ class WeekView(QWidget):
                 self.selected_item = item
                 self._drag_item = item
                 self._drag_start = (row, col)
-                rect = self.table.visualRect(self.table.model().index(row, col))
-                margin = 5
-                if abs(pos.y() - rect.top()) <= margin:
-                    self._resize_edge = "start"
-                elif abs(pos.y() - rect.bottom()) <= margin:
-                    self._resize_edge = "end"
+                model = self.table.model()
+                if model is not None:
+                    rect = self.table.visualRect(model.index(row, col))
+                    margin = 5
+                    if abs(pos.y() - rect.top()) <= margin:
+                        self._resize_edge = "start"
+                    elif abs(pos.y() - rect.bottom()) <= margin:
+                        self._resize_edge = "end"
+                    else:
+                        self._resize_edge = None
                 else:
                     self._resize_edge = None
                 return True
-            if event.type() == QEvent.MouseButtonRelease and self._drag_item:
+            if event.type() == QEvent.Type.MouseButtonRelease and self._drag_item:
                 pos = event.position().toPoint()
                 row = self.table.rowAt(pos.y())
                 col = self.table.columnAt(pos.x())
@@ -213,19 +234,19 @@ class WeekView(QWidget):
                     self._drag_item = None
                     self._resize_edge = None
                     return False
-                drow = row - self._drag_start[0]
-                dcol = col - self._drag_start[1]
+                delta_row = row - self._drag_start[0]
+                delta_col = col - self._drag_start[1]
                 start = self._drag_item.start
                 end = self._drag_item.end
                 if self._resize_edge == "start":
-                    new_start = start + timedelta(days=dcol, hours=drow)
+                    new_start = start + timedelta(days=delta_col, hours=delta_row)
                     new_end = end
                 elif self._resize_edge == "end":
                     new_start = start
-                    new_end = end + timedelta(days=dcol, hours=drow)
+                    new_end = end + timedelta(days=delta_col, hours=delta_row)
                 else:
-                    new_start = start + timedelta(days=dcol, hours=drow)
-                    new_end = end + timedelta(days=dcol, hours=drow)
+                    new_start = start + timedelta(days=delta_col, hours=delta_row)
+                    new_end = end + timedelta(days=delta_col, hours=delta_row)
                 self.model.update_item_time(self._drag_item, new_start, new_end)
                 self._drag_item = None
                 self._resize_edge = None
