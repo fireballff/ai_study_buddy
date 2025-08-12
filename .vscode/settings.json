@@ -20,6 +20,7 @@
         "pydantic",
         "pyinstaller",
         "pytest",
+        "PYTHONPATH",
         "structlog",
         "Supabase",
         "venv"
