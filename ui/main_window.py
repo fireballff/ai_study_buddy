@@ -1,11 +1,14 @@
 from __future__ import annotations
+
 from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QStackedWidget, QVBoxLayout
+
 from project.settings import Settings, load_settings
 from project.db import get_engine, ensure_db
 from integrations.auth_supabase import SupabaseAuth
+
 from ui.components.sidebar import Sidebar
 from ui.pages.home import HomePage
-from ui.calendar.week_view import WeekView
+from ui.calendar.week_view import WeekView  # <- fixed path
 from ui.pages.tasks import TasksPage
 from ui.pages.planner import PlannerPage
 from ui.pages.settings_page import SettingsPage
@@ -14,9 +17,8 @@ from ui.theme_manager import build_stylesheet
 
 
 class MainWindow(QMainWindow):
-    """
-    Main application window with a sidebar and stacked pages. Handles theme switching and navigation.
-    """
+    """Main application window with a sidebar and stacked pages. Handles theme switching and navigation."""
+
     def __init__(self, settings: Settings | None = None, engine=None, parent=None):
         super().__init__(parent)
         self.settings = settings or load_settings()
@@ -27,8 +29,12 @@ class MainWindow(QMainWindow):
         self.engine = engine or get_engine(self.settings.sqlite_path)
         ensure_db(self.engine)
 
-        # Supabase auth stub
-        self.auth = SupabaseAuth(self.settings.supabase_url, self.settings.supabase_anon_key, self.settings.sample_mode)
+        # Supabase auth (stubbed in sample mode)
+        self.auth = SupabaseAuth(
+            self.settings.supabase_url,
+            self.settings.supabase_anon_key,
+            self.settings.sample_mode,
+        )
 
         container = QWidget(self)
         root = QHBoxLayout(container)
@@ -43,6 +49,7 @@ class MainWindow(QMainWindow):
 
         # Stacked widget to hold pages
         self.stack = QStackedWidget(self)
+
         # Instantiate pages with dependencies
         self.pages = {
             "home": HomePage(self),
@@ -58,6 +65,7 @@ class MainWindow(QMainWindow):
         root.addWidget(self.sidebar)
 
         if self.settings.enable_adhd_mode:
+            # Focus/ADHD layout replaces the standard stack
             from ui.adhd.timer_widget import TimerWidget
             from ui.adhd.focus_timeline import FocusTimeline
             from ui.adhd.one_thing_now import OneThingNow
@@ -86,9 +94,7 @@ class MainWindow(QMainWindow):
         self.on_navigate("home")
 
     def on_navigate(self, key: str) -> None:
-        """
-        Switch to the page corresponding to the navigation key.
-        """
+        """Switch to the page corresponding to the navigation key."""
         page = self.pages.get(key, self.pages["home"])
         if key == "adhd":
             # Refresh task list in focus mode each time it's opened
@@ -96,9 +102,7 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentWidget(page)
 
     def apply_theme(self, dark: bool) -> None:
-        """
-        Apply the dark or light theme across the entire window.
-        """
+        """Apply the dark or light theme across the entire window."""
         self.settings.enable_dark_mode = bool(dark)
         self.setStyleSheet(build_stylesheet(dark))
         # Keep settings page checkbox in sync
@@ -109,8 +113,6 @@ class MainWindow(QMainWindow):
             settings_page.chk_dark.blockSignals(False)
 
     def handle_sign_out(self) -> None:
-        """
-        Stub for handling sign‑out events.
-        """
+        """Stub for handling sign‑out events."""
         # In a real implementation, this could clear caches and return to login.
         pass
