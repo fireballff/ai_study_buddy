@@ -10,59 +10,22 @@ from PyQt6.QtWidgets import (
     QLineEdit,
 )
 from PyQt6.QtCore import QTimer
-from datetime import datetime, timedelta
-from sqlalchemy import text
-from agents import classifier
+from datetime import datetime
+import uuid
 
+from project.repo.base import Task
+from project.repo.syncing import SyncingRepo
+from project.repo.query_builders import build_tasks_query  # re-export for tests
 
-def build_tasks_query(filter_mode: str, search: str):
-    """Construct the SQL query and parameters for a tasks view."""
-    where_clauses = []
-    params: dict[str, str] = {}
-
-    if filter_mode == "Today":
-        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        tomorrow = today + timedelta(days=1)
-        params["today"] = today.isoformat()
-        params["tomorrow"] = tomorrow.isoformat()
-        where_clauses.append(
-            "(state = 'pending' OR (start_time >= :today AND start_time < :tomorrow))"
-        )
-        order_clause = "ORDER BY COALESCE(start_time, due_date)"
-    elif filter_mode == "Upcoming":
-        where_clauses.append("due_date IS NOT NULL")
-        order_clause = "ORDER BY due_date"
-    elif filter_mode == "By Course":
-        order_clause = "ORDER BY COALESCE(course_label, ''), COALESCE(due_date, '9999-12-31')"
-    elif filter_mode == "By Priority":
-        order_clause = "ORDER BY COALESCE(priority, 3), COALESCE(due_date, '9999-12-31')"
-    else:  # All
-        order_clause = "ORDER BY created_at"
-
-    if search:
-        params["q"] = f"%{search.lower()}%"
-        where_clauses.append(
-            "(LOWER(title) LIKE :q OR LOWER(type) LIKE :q OR LOWER(COALESCE(course_label,'')) LIKE :q)"
-        )
-
-    where_sql = ""
-    if where_clauses:
-        where_sql = "WHERE " + " AND ".join(where_clauses)
-
-    sql = (
-        "SELECT id, title, type, estimated_duration, due_date, state, start_time, end_time, "
-        "course_label, priority FROM tasks "
-        f"{where_sql} {order_clause}"
-    )
-    return sql, params
+__all__ = ["build_tasks_query", "TasksPage"]
 
 
 class TasksPage(QWidget):
     """Page to display and manage user tasks with filters and search."""
 
-    def __init__(self, engine, parent=None):
+    def __init__(self, repo: SyncingRepo, parent=None):
         super().__init__(parent)
-        self.engine = engine
+        self.repo = repo
         layout = QVBoxLayout(self)
         title = QLabel("Tasks")
         title.setObjectName("page-title")
@@ -91,38 +54,36 @@ class TasksPage(QWidget):
         layout.addStretch(1)
         self.refresh_list()
 
+    # ------------------------------------------------------------------
     def refresh_list(self):
-        """Load tasks from DB and display them in the list widget."""
+        """Load tasks from repo and display them in the list widget."""
         self.list_widget.clear()
         filter_mode = self.filter_combo.currentText() if hasattr(self, "filter_combo") else "All"
         search = self.search_edit.text() if hasattr(self, "search_edit") else ""
-        sql, params = build_tasks_query(filter_mode, search)
-        self.list_widget.clear()
-        with self.engine.begin() as conn:
-            rows = conn.execute(text(sql), params).fetchall()
-            for row in rows:
-                task_id, title, ttype, duration, due, state, start, end, course, priority = row
-                parts = [f"#{task_id} [{state}] {title} ({ttype}, {duration}m)"]
-                if course:
-                    parts.append(f"• {course}")
-                if priority is not None:
-                    parts.append(f"• p{priority}")
-                if due:
-                    try:
-                        due_disp = datetime.fromisoformat(due).date().isoformat()
-                    except Exception:
-                        due_disp = due
-                    parts.append(f"– due {due_disp}")
-                if start and end:
-                    try:
-                        start_t = datetime.fromisoformat(start).strftime("%H:%M")
-                        end_t = datetime.fromisoformat(end).strftime("%H:%M")
-                        parts.append(f"| {start_t}→{end_t}")
-                    except Exception:
-                        pass
-                item_text = " ".join(parts)
-                self.list_widget.addItem(QListWidgetItem(item_text))
+        tasks = self.repo.list_tasks(filter_mode, search)
+        for t in tasks:
+            parts = [f"#{t.id} [{t.state}] {t.title} ({t.type}, {t.estimated_duration}m)"]
+            if t.course_label:
+                parts.append(f"• {t.course_label}")
+            if t.priority is not None:
+                parts.append(f"• p{t.priority}")
+            if t.due_date:
+                try:
+                    due_disp = datetime.fromisoformat(t.due_date).date().isoformat()
+                except Exception:
+                    due_disp = t.due_date
+                parts.append(f"– due {due_disp}")
+            if t.start_time and t.end_time:
+                try:
+                    start_t = datetime.fromisoformat(t.start_time).strftime("%H:%M")
+                    end_t = datetime.fromisoformat(t.end_time).strftime("%H:%M")
+                    parts.append(f"| {start_t}→{end_t}")
+                except Exception:
+                    pass
+            item_text = " ".join(parts)
+            self.list_widget.addItem(QListWidgetItem(item_text))
 
+    # ------------------------------------------------------------------
     def on_add_task(self):
         from PyQt6.QtWidgets import (
             QDialog,
@@ -134,6 +95,7 @@ class TasksPage(QWidget):
             QSpinBox,
             QCheckBox,
         )
+        from agents import classifier
 
         dialog = QDialog(self)
         dialog.setWindowTitle("New Task")
@@ -174,15 +136,20 @@ class TasksPage(QWidget):
             if not ttype:
                 ttype = classification["type"]
             course_label = classification.get("course_label")
-            priority = classification.get("priority")
-            # Insert into DB
-            with self.engine.begin() as conn:
-                conn.execute(
-                    text(
-                        "INSERT INTO tasks (title, type, estimated_duration, due_date, course_label, priority) VALUES (:title, :type, :duration, :due, :course, :priority)"
-                    ),
-                    {"title": title, "type": ttype, "duration": duration, "due": due_iso, "course": course_label, "priority": priority},
-                )
+            priority = classification.get("priority", 0)
+            task = Task(
+                id=None,
+                owner_user_id=None,
+                source="app",
+                source_id=str(uuid.uuid4()),
+                title=title,
+                type=ttype,
+                estimated_duration=duration,
+                due_date=due_iso,
+                course_label=course_label,
+                priority=priority,
+            )
+            self.repo.upsert_task(task)
             dialog.accept()
             self.refresh_list()
 

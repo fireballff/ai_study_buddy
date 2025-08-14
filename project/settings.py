@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     app_log_level: str = "INFO"
     enable_dark_mode: bool = False
     enable_adhd_mode: bool = False
+    enable_micro_coaching: bool = False
+    enable_live_reschedule: bool = False
     preferred_timer_mode: str = "25/5"
 
     # Keyboard shortcuts (defaults)

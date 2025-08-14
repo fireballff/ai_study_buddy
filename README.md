@@ -23,6 +23,14 @@ The app helps students organize tasks, plan study sessions, and schedule their c
 
 2. Copy `.env.sample` to `.env` and modify values if connecting to Supabase/Google.
 
+   The app reads the following Supabase settings:
+   - `SUPABASE_URL`
+   - `SUPABASE_ANON_KEY`
+   - `SQLITE_PATH` (optional override for the local cache)
+
+   Additional feature flags are available via environment variables or `.env`:
+   `ENABLE_ADHD_MODE`, `ENABLE_MICRO_COACHING`, `ENABLE_LIVE_RESCHEDULE`.
+
 3. Run the application:
    ```bash
    python scripts/dev_run.py
