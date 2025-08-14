@@ -18,7 +18,7 @@ extra_datas = [
     (str(REPO_ROOT / "alembic.ini"), "."),
     (str(REPO_ROOT / "migrations"), "migrations"),
     (str(REPO_ROOT / "README.md"), "."),
-    (str(REPO_ROOT / ".env.sample"), "."),  # handy for testers
+    
 ]
 
 # Include .env if present at build time (optional; you can also drop it in later)
