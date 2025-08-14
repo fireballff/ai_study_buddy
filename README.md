@@ -63,3 +63,56 @@ ai_study_buddy/
 ├── requirements.txt   # dependencies
 └── .env.sample        # sample environment configuration
 ```
+
+## Supabase Edge Functions
+
+This project uses Supabase Edge Functions written in Deno. Environment variables must be provided when deploying via the Supabase CLI.
+
+### google_oauth_exchange
+
+Exchanges a Google OAuth authorization code for tokens and securely stores the refresh token on the server.
+
+Set the following variables for the function:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `SYM_ENCRYPTION_KEY`
+
+Example invocation after deploying the function:
+
+```bash
+curl -X POST https://<project-ref>.functions.supabase.co/google_oauth_exchange \
+  -H "Authorization: Bearer <supabase_jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"code":"<oauth-code>","code_verifier":"<verifier>","redirect_uri":"http://localhost:8765/callback"}'
+```
+
+A successful call returns `{ "ok": true }`.
+
+### google_token_mint
+
+Mints a short-lived Google access token using the stored encrypted refresh token.
+
+Required environment variables:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `SYM_ENCRYPTION_KEY`
+
+Example invocation:
+
+```bash
+curl -X POST https://<project-ref>.functions.supabase.co/google_token_mint \
+  -H "Authorization: Bearer <supabase_jwt>"
+```
+
+Successful response:
+
+```json
+{"access_token":"ya29...","expires_in":3600}
+```
+
