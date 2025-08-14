@@ -17,7 +17,35 @@ from project.repo.base import Task
 from project.repo.syncing import SyncingRepo
 from project.repo.query_builders import build_tasks_query  # re-export for tests
 
-__all__ = ["build_tasks_query", "TasksPage"]
+__all__ = [
+    "build_tasks_query",
+    "TasksPage",
+    "as_str",
+    "as_optional_str",
+    "as_int",
+]
+
+
+def as_str(value: object, default: str = "") -> str:
+    """Coerce a value to ``str`` with a fallback."""
+    if value is None:
+        return default
+    return str(value)
+
+
+def as_optional_str(value: object) -> str | None:
+    """Return ``None`` for falsy values, otherwise ``str(value)``."""
+    if value in (None, ""):
+        return None
+    return str(value)
+
+
+def as_int(value: object, default: int = 0) -> int:
+    """Coerce ``value`` to ``int`` with a default on failure."""
+    try:
+        return int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
 
 
 class TasksPage(QWidget):
@@ -134,20 +162,18 @@ class TasksPage(QWidget):
                 due_iso = None
             classification = classifier.classify(title)
             if not ttype:
-                ttype = classification["type"]
-            course_label = classification.get("course_label")
-            priority = classification.get("priority", 0)
+                ttype = as_str(classification.get("type"), "study")
             task = Task(
                 id=None,
                 owner_user_id=None,
                 source="app",
                 source_id=str(uuid.uuid4()),
-                title=title,
-                type=ttype,
+                title=as_str(title),
+                type=as_str(ttype, "study"),
                 estimated_duration=duration,
-                due_date=due_iso,
-                course_label=course_label,
-                priority=priority,
+                due_date=as_optional_str(due_iso),
+                course_label=as_optional_str(classification.get("course_label")),
+                priority=as_int(classification.get("priority"), 0),
             )
             self.repo.upsert_task(task)
             dialog.accept()

@@ -1,7 +1,7 @@
 """Local SQLite cache repository."""
 from __future__ import annotations
 
-from typing import Sequence, List
+from typing import Sequence, List, Optional
 from datetime import datetime
 import json
 import uuid
@@ -87,15 +87,41 @@ class LocalCacheRepo:
                     ),
                     {"source": task.source, "source_id": task.source_id},
                 ).fetchone()
-                task.id = row[0]
+                if row is None:
+                    # Something went very wrong – the row should have been inserted
+                    raise RuntimeError("Failed to fetch inserted task id")
+                task.id = int(row[0])
         task.updated_at = updated_at
         task.version = version
         task.dirty = int(dirty)
         return task
 
     # ------------------------------------------------------------------
-    def queue_pending(self, table: str, op_type: str, row_local_id: int, payload: dict) -> None:
+    def queue_pending(
+        self, table: str, op_type: str, row_local_id: Optional[int], payload: dict
+    ) -> None:
+        """Queue an operation for later sync.
+
+        If ``row_local_id`` is ``None`` we attempt to resolve the id from the
+        payload using ``(source, source_id)``. This makes the function robust
+        when callers have not yet persisted the row locally.
+        """
         with self.engine.begin() as conn:
+            if row_local_id is None:
+                source = payload.get("source")
+                source_id = payload.get("source_id")
+                if source and source_id:
+                    res = conn.execute(
+                        text(
+                            "SELECT id FROM tasks WHERE source=:source AND source_id=:source_id"
+                        ),
+                        {"source": source, "source_id": source_id},
+                    ).fetchone()
+                    if res is None:
+                        raise ValueError("row_local_id missing and task not found")
+                    row_local_id = int(res[0])
+                else:
+                    raise ValueError("row_local_id required when source identifiers missing")
             conn.execute(
                 text(
                     "INSERT INTO pending_ops (table_name, op_type, row_local_id, payload) VALUES (:t,:o,:r,:p)"
