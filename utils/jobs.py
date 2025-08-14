@@ -30,7 +30,7 @@ def sync_app_events(payload: Any) -> None:
     :class:`integrations.google_calendar.GoogleCalendarClient`.  The client is
     asked to perform an incremental fetch using any provided ``cursor``.  Any
     exception raised bubbles up to the worker which will trigger retry/backoff
-    behaviour.
+    behavior.
     """
     client = payload.get("client")
     if client is None:

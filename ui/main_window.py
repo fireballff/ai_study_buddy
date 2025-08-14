@@ -1,9 +1,17 @@
 from __future__ import annotations
 
-from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QStackedWidget, QVBoxLayout
+from PyQt6.QtWidgets import (
+    QMainWindow,
+    QWidget,
+    QHBoxLayout,
+    QStackedWidget,
+    QVBoxLayout,
+)
 
 from project.settings import Settings, load_settings
 from project.db import get_engine, ensure_db
+from project.repo.local_sqlite import LocalCacheRepo
+from project.repo.syncing import SyncingRepo
 from integrations.auth_supabase import SupabaseAuth
 
 from ui.components.sidebar import Sidebar
@@ -19,15 +27,22 @@ from ui.theme_manager import build_stylesheet
 class MainWindow(QMainWindow):
     """Main application window with a sidebar and stacked pages. Handles theme switching and navigation."""
 
-    def __init__(self, settings: Settings | None = None, engine=None, parent=None):
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        engine=None,
+        repo: SyncingRepo | None = None,
+        parent=None,
+    ):
         super().__init__(parent)
         self.settings = settings or load_settings()
         self.setWindowTitle(self.settings.app_name)
         self.resize(1100, 740)
 
-        # Database engine
+        # Database engine and repositories
         self.engine = engine or get_engine(self.settings.sqlite_path)
         ensure_db(self.engine)
+        self.repo = repo or SyncingRepo(LocalCacheRepo(self.engine))
 
         # Supabase auth (stubbed in sample mode)
         self.auth = SupabaseAuth(
@@ -54,7 +69,7 @@ class MainWindow(QMainWindow):
         self.pages = {
             "home": HomePage(self),
             "calendar": WeekView(self.engine, self),
-            "tasks": TasksPage(self.engine, self),
+            "tasks": TasksPage(self.repo, self),
             "planner": PlannerPage(self.engine, self),
             "settings": SettingsPage(self.settings, self.auth, self),
             "adhd": ADHDModePage(self.engine, self),
